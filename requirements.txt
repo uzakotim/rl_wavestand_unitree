@@ -1,2 +1,5 @@
 gym
 stable-baselines3
+"Cython<3"
+shimmy
+tensorboard
