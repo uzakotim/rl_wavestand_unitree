@@ -3,7 +3,7 @@ from unitree_standing_env import UnitreeWaveEnv
 
 env = UnitreeWaveEnv()
 model = PPO.load(
-    "/home/timur/git/rl_wavestand_unitree/models/best/best_model")
+    "/home/timur/git/rl_wavestand_unitree/models/ppo_unitree_standing_final", env=env)
 
 obs = env.reset()
 done = False
