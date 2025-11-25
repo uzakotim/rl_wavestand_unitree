@@ -136,14 +136,19 @@ class UnitreeWaveEnv(gym.Env):
 
         # Build desired positions and compute torques
         desired_qpos = qpos.copy()
+
+        delta_max = 0.3  # max joint movement per action
+
         for i, jid in enumerate(self.joint_indices):
+
             # Use model attributes to find position and velocity addresses
             idx_qpos = self.model.jnt_qposadr[jid]
             # Index in velocity/actuator space
             idx_dof = self.model.jnt_dofadr[jid]
 
+            # Scale action to reasonable joint delta
             # target = reference + delta
-            target = self.qpos0[idx_qpos] + action[i]
+            target = self.qpos0[idx_qpos] + action[i] * delta_max
             desired_qpos[idx_qpos] = target
 
             # desired velocity = 0
@@ -154,14 +159,7 @@ class UnitreeWaveEnv(gym.Env):
             tau_val = kp * (target - qpos[idx_qpos]) + kd * dq
 
             # Map torque to actuator indices
-            # ASSUMPTION: This code assumes there is a direct 1:1 mapping between
-            # the controlled joint's DOF index (idx_dof) and an actuator index.
-            # You must ensure your model XML defines actuators correctly for these joints.
-            if idx_dof < len(tau):
-                tau[idx_dof] = tau_val
-            # If you have specific actuator names, you should map to self.model.actuator_name2id
-            # Example: act_id = mj_name2id(self.model, mjOBJ_ACTUATOR, "actuator_name")
-            # tau[act_id] = tau_val
+            tau[i] = tau_val
 
         # Apply torques/control signals (for new mujoco api)
         self.data.ctrl[:] = tau
@@ -254,20 +252,20 @@ class UnitreeWaveEnv(gym.Env):
 
     def _is_done(self, obs):
         # done if tilt too large or base height below threshold
-        roll, pitch = obs[0], obs[1]
-        if abs(roll) > 1.0 or abs(pitch) > 1.0:
-            return True
+        # roll, pitch = obs[0], obs[1]
+        # if abs(roll) > 1.0 or abs(pitch) > 1.0:
+        # return True
         # or low height
-        base_height = self._get_base_height()
-        if base_height < 0.2:  # example threshold
-            return True
+        # base_height = self._get_base_height()
+        # if base_height < 0.2:  # example threshold
+        # return True
         return False
 
     def render(self, mode='human'):
         if self.viewer is None:
             # The viewer is typically handled outside the Env for the new API
             # but if you want to integrate it here for simplicity:
-            self.viewer = mujoco.viewer.launch(self.model, self.data)
+            self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
 
         if self.viewer:
             self.viewer.sync()
