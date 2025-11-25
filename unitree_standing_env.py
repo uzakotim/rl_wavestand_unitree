@@ -8,6 +8,7 @@ import math
 # e.g. import mujoco_py as mjpy or import mujoco
 import mujoco
 from mujoco import MjModel, MjData, mj_step, mj_forward, mj_name2id, mj_resetDataKeyframe
+import mujoco.viewer
 
 
 class UnitreeWaveEnv(gym.Env):
@@ -17,7 +18,7 @@ class UnitreeWaveEnv(gym.Env):
     Observation: base orientation, joint angles, velocities, contact sensors, phase
     """
 
-    def __init__(self, model_path="g1/g1_29dof.xml", control_joints=None, dt=0.02):
+    def __init__(self, model_path="g1/scene_29dof.xml", control_joints=None, dt=0.02):
         super().__init__()
         # Load the model using the new API method
         self.model = MjModel.from_xml_path(model_path)
@@ -253,7 +254,7 @@ class UnitreeWaveEnv(gym.Env):
         if self.viewer is None:
             # The viewer is typically handled outside the Env for the new API
             # but if you want to integrate it here for simplicity:
-            self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
+            self.viewer = mujoco.viewer.launch(self.model, self.data)
 
         if self.viewer:
             self.viewer.sync()

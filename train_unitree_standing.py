@@ -10,7 +10,7 @@ from unitree_standing_env import UnitreeWaveEnv
 def make_env(rank=0):
     def _init():
         env = UnitreeWaveEnv(
-            model_path="g1/g1_29dof.xml")
+            model_path="g1/scene_29dof.xml")
         return env
     return _init
 
@@ -31,7 +31,7 @@ if __name__ == "__main__":
         save_freq=50_000, save_path="./models/", name_prefix="ppo_unitree_standing")
     # Optional EvalCallback: evaluate every N steps
     eval_env = UnitreeWaveEnv(
-        model_path="g1/g1_29dof.xml")
+        model_path="g1/scene_29dof.xml")
     eval_callback = EvalCallback(eval_env, best_model_save_path='./models/best/',
                                  log_path='./logs/', eval_freq=20_000, n_eval_episodes=5, deterministic=True)
 
