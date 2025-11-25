@@ -22,7 +22,7 @@ if __name__ == "__main__":
                 verbose=1,
                 n_steps=2048,
                 batch_size=64,
-                learning_rate=3e-5,  # 3e-4
+                learning_rate=5e-5,  # 3e-4
                 ent_coef=0.01,
                 tensorboard_log="./tensorboard/unitree_standing/")
 
