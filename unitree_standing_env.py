@@ -129,8 +129,8 @@ class UnitreeWaveEnv(gym.Env):
         qpos = self.data.qpos.copy()
         qvel = self.data.qvel.copy()
 
-        kp = 20.0
-        kd = 2.0
+        kp = 80.0
+        kd = 8.0
         tau = np.zeros(self.model.nu)
 
         # These lists should match the number of joints
@@ -144,7 +144,9 @@ class UnitreeWaveEnv(gym.Env):
             qpos_addr = self.model.jnt_qposadr[jid]
             dof_addr = self.model.jnt_dofadr[jid]
 
-            target = self.qpos0[qpos_addr] + action[i] * \
+            # target = self.data.qpos[qpos_addr] + action[i] * \
+            # (upper_limits[i]-lower_limits[i])/2
+            target = (lower_limits[i]+upper_limits[i])/2 + action[i] * \
                 (upper_limits[i]-lower_limits[i])/2
             qpos_des = target
             qvel_des = 0.0
