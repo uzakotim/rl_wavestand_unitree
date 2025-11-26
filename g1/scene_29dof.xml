@@ -1,6 +1,6 @@
 <mujoco model="g1_29dof scene">
   <include file="g1_29dof.xml"/>
-
+  <option gravity="0 0 -9.81" />
   <statistic center="0 0 0.5" extent="2.0"/>
 
   <visual>
