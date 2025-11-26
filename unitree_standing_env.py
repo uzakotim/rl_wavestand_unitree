@@ -5,6 +5,7 @@ from mujoco import MjModel, MjData, mj_step, mj_forward, mj_name2id, mj_resetDat
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
+import mujoco.viewer
 
 
 class UnitreeWaveEnv(gym.Env):
@@ -68,7 +69,7 @@ class UnitreeWaveEnv(gym.Env):
 
         # -------- Action Space --------
         self.n_actions = len(self.control_joints)
-        max_delta = 1.0
+        max_delta = 1.0  # 1.0
         self.action_space = spaces.Box(
             low=-max_delta, high=max_delta,
             shape=(self.n_actions,), dtype=np.float32
