@@ -231,8 +231,8 @@ class UnitreeWaveEnv(gym.Env):
         roll, pitch = obs[0], obs[1]
 
         # upright check: cos(roll) ~ 1 when standing
-        if abs(math.cos(roll)) < 0.5 or abs(math.cos(pitch)) < 0.5:
-            return True
+        # if abs(math.cos(roll)) < 0.5 or abs(math.cos(pitch)) < 0.5:
+        # return True
 
         if self._get_base_height() < 0.3:  # allow some tolerance
             return True
