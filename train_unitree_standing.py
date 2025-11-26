@@ -22,7 +22,7 @@ if __name__ == "__main__":
                 verbose=1,
                 n_steps=2048,
                 batch_size=64,
-                learning_rate=5e-5,  # 3e-4
+                learning_rate=3e-4,  # 3e-4 5e-5
                 ent_coef=0.01,
                 tensorboard_log="./tensorboard/unitree_standing/")
 
@@ -33,7 +33,7 @@ if __name__ == "__main__":
     eval_env = UnitreeWaveEnv(
         model_path="g1/scene_29dof.xml")
     eval_callback = EvalCallback(eval_env, best_model_save_path='./models/best/',
-                                 log_path='./logs/', eval_freq=20_000, n_eval_episodes=5, deterministic=True)
+                                 log_path='./logs/', eval_freq=20_000, n_eval_episodes=5, deterministic=True, render=True)
 
     model.learn(total_timesteps=500_000, callback=[
                 checkpoint_callback, eval_callback])

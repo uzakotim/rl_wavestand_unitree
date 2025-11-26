@@ -68,7 +68,8 @@ class UnitreeWaveEnv(gym.Env):
         self.n_actions = len(self.control_joints)
 
         # Action space: delta joint positions (radians) clipped
-        max_delta = 0.6  # ±0.6 rad offsets
+        # max_delta = 0.6  # ±0.6 rad offsets
+        max_delta = 1.0  # ±0.6 rad offsets
         self.action_space = spaces.Box(
             low=-max_delta, high=max_delta, shape=(self.n_actions,), dtype=np.float32)
 
@@ -129,15 +130,31 @@ class UnitreeWaveEnv(gym.Env):
         qvel = self.data.qvel.copy()
 
         # Simple PD controller:
-        kp = 150.0
-        kd = 2.0 * np.sqrt(kp)
+        kp = 20.0
+        kd = 2.0
         # Actuator force vector (nu = number of actuators)
         tau = np.zeros(self.model.nu)
 
+        # Lower limits
+        lower_limits = [
+            -2.5307, -0.5236, -2.7576, -0.087267, -0.87267, -0.2618,
+            -2.5307, -2.9671, -2.7576, -0.087267, -0.87267, -0.2618,
+            -2.618, -0.52, -0.52, -3.0892, -1.5882, -2.618, -1.0472,
+            -1.972222054, -1.614429558, -1.614429558, -3.0892, -2.2515,
+            -2.618, -1.0472, -1.972222054, -1.614429558, -1.614429558
+        ]
+
+        # Upper limits
+        upper_limits = [
+            2.8798, 2.9671, 2.7576, 2.8798, 0.5236, 0.2618,
+            2.8798, 0.5236, 2.7576, 2.8798, 0.5236, 0.2618,
+            2.618, 0.52, 0.52, 2.6704, 2.2515, 2.618, 2.0944,
+            1.972222054, 1.614429558, 1.614429558, 2.6704, 1.5882,
+            2.618, 2.0944, 1.972222054, 1.614429558, 1.614429558
+        ]
+
         # Build desired positions and compute torques
         desired_qpos = qpos.copy()
-
-        delta_max = 0.3  # max joint movement per action
 
         for i, jid in enumerate(self.joint_indices):
 
@@ -148,7 +165,8 @@ class UnitreeWaveEnv(gym.Env):
 
             # Scale action to reasonable joint delta
             # target = reference + delta
-            target = self.qpos0[idx_qpos] + action[i] * delta_max
+            target = self.qpos0[idx_qpos] + action[i] * \
+                (upper_limits[i]-lower_limits[i])/2
             desired_qpos[idx_qpos] = target
 
             # desired velocity = 0
@@ -252,13 +270,13 @@ class UnitreeWaveEnv(gym.Env):
 
     def _is_done(self, obs):
         # done if tilt too large or base height below threshold
-        # roll, pitch = obs[0], obs[1]
-        # if abs(roll) > 1.0 or abs(pitch) > 1.0:
-        # return True
+        roll, pitch = obs[0], obs[1]
+        if abs(roll) > 1.0 or abs(pitch) > 1.0:
+            return True
         # or low height
-        # base_height = self._get_base_height()
-        # if base_height < 0.2:  # example threshold
-        # return True
+        base_height = self._get_base_height()
+        if base_height < 0.2:  # example threshold
+            return True
         return False
 
     def render(self, mode='human'):

@@ -13,6 +13,7 @@ while not done:
     action, _ = model.predict(obs, deterministic=True)
     obs, reward, done, info = env.step(action)
     env.render()
-    time.sleep(1)
+    print(action)
+    time.sleep(0.1)
 
 env.close()
