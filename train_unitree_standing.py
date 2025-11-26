@@ -46,12 +46,12 @@ if __name__ == "__main__":
     # vec_env = VecNormalize(vec_env, norm_obs=True,
     #                        norm_reward=False, clip_obs=10.0, clip_reward=10.0)
 
-    vec_env = VecNormalize(vec_env, norm_obs=True, norm_reward=True)
+    vec_env = VecNormalize(vec_env, norm_obs=True, norm_reward=False)
     # Evaluation environment
     eval_env = DummyVecEnv([lambda: Monitor(UnitreeWaveEnv(
         render_mode="none", control_joints=control_joints))])
     eval_env = VecNormalize(eval_env, norm_obs=True,
-                            norm_reward=True, clip_obs=10.0, clip_reward=10.0)
+                            norm_reward=False)
     eval_env.training = False
     eval_env.norm_reward = False
 
@@ -59,9 +59,9 @@ if __name__ == "__main__":
     policy_kwargs = dict(
         net_arch=dict(
             # Actor network: slightly deeper to capture complex action mapping
-            pi=[512, 512, 256, 256, 256, 256, 256],  # prev number of layers 5
+            pi=[512, 512, 256, 256, 256],  # prev number of layers 5
             # Critic network: larger to accurately estimate returns (explained variance)
-            vf=[1024, 512, 256, 256, 256, 256, 256],
+            vf=[1024, 512, 256, 256, 256],
         ),
         activation_fn=torch.nn.ReLU
     )
@@ -72,8 +72,8 @@ if __name__ == "__main__":
         n_steps=2048,
         batch_size=256,
         learning_rate=5e-5,  # 1e-4
-        ent_coef=0.0001,  # 0.005
-        clip_range=1.0,
+        ent_coef=0.01,  # 0.005
+        clip_range=0.25,
         vf_coef=1.0,
         gae_lambda=0.90,
         n_epochs=20,

@@ -2,6 +2,8 @@ from stable_baselines3 import PPO
 from unitree_standing_env import UnitreeWaveEnv
 import threading
 import time
+import numpy as np
+
 control_joints = [
     # Legs (L)
     'left_hip_pitch_joint', 'left_hip_roll_joint', 'left_hip_yaw_joint',
@@ -34,9 +36,11 @@ while 1:
     # print("Left knee target:",
     #   (lower_limits[3]+upper_limits[3])/2 + action[3]*(upper_limits[3]-lower_limits[3])/2)
     # print("Current joint pos:", env.data.qpos[qpos_addr])
+    # obs, reward, terminated, truncated, info = env.step(action)
+    # action = np.ones(15)
     obs, reward, terminated, truncated, info = env.step(action)
     env.render()
-    print(action)
-    time.sleep(0.1)
+    # print(action)
+    time.sleep(1)
 
 env.close()

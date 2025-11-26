@@ -16,7 +16,9 @@ class UnitreeWaveEnv(gym.Env):
     metadata = {"render_modes": ["human", "none"]}
 
     def __init__(self, model_path="g1/scene_29dof.xml",
-                 control_joints=None, dt=0.02, render_mode="none"):
+                 control_joints=None, dt=0.002, render_mode="none"):
+
+        # dt 0.02
 
         super().__init__()
         self.render_mode = render_mode
@@ -87,17 +89,18 @@ class UnitreeWaveEnv(gym.Env):
         self.stand_height = 0.8
 
         # -------- Reward Parameters --------
-        self.w_stand = 1.0
-        self.w_posture = 0.8
         self.w_wave = 0.0
-        self.w_torque_pen = 1e-4
+
+        self.w_stand = 1.0
+        self.w_posture = 0.5
+        self.w_torque_pen = 1e-5
 
         # -------- Wave Parameters --------
         self.wave_freq = 0.8
         self.wave_amp = 0.6
         self.time = 0.0
 
-        self.max_episode_steps = 1000
+        self.max_episode_steps = 500
         self.step_count = 0
 
     # =========================================================
@@ -129,8 +132,8 @@ class UnitreeWaveEnv(gym.Env):
         qpos = self.data.qpos.copy()
         qvel = self.data.qvel.copy()
 
-        kp = 80.0
-        kd = 8.0
+        kp = 20.0
+        kd = 2.0
         tau = np.zeros(self.model.nu)
 
         # These lists should match the number of joints
@@ -153,12 +156,28 @@ class UnitreeWaveEnv(gym.Env):
 
             dq = qvel_des - qvel[dof_addr]
             tau_val = kp*(qpos_des - qpos[qpos_addr]) + kd*dq
+            tau[i] = tau_val
 
-            if dof_addr in self.dof_to_actuator:
-                act = self.dof_to_actuator[dof_addr]
-                tau[act] = tau_val
+        full_control = np.zeros(len(self.data.ctrl))
+        full_control[0] = tau[0]  # left_hip_pitch
+        full_control[1] = tau[1]  # left_hip_roll
+        full_control[2] = tau[2]  # left_hip_yaw
+        full_control[3] = tau[3]  # left_knee
+        full_control[4] = tau[4]  # left_ankle_pitch
+        full_control[5] = tau[5]  # left_ankle_roll
 
-        self.data.ctrl[:] = tau
+        full_control[6] = tau[6]  # right_hip_pitch
+        full_control[7] = tau[7]  # right_hip_roll
+        full_control[8] = tau[8]  # right_hip_yaw
+        full_control[9] = tau[9]  # right_knee
+        full_control[10] = tau[10]  # right_ankle_pitch
+        full_control[11] = tau[11]  # right_ankle_roll
+
+        full_control[12] = tau[12]  # waist_yaw
+        full_control[13] = tau[13]  # waist_roll
+        full_control[14] = tau[14]  # waist_pitch
+
+        self.data.ctrl[:] = full_control
         mj_step(self.model, self.data)
 
         obs = self._get_obs()
@@ -217,7 +236,6 @@ class UnitreeWaveEnv(gym.Env):
             self.w_wave * r_wave -
             torque_pen
         )
-        reward = np.clip(reward, -10, 10)
         return reward, {
             "upright": upright,
             "posture": r_posture,
@@ -233,8 +251,8 @@ class UnitreeWaveEnv(gym.Env):
         roll, pitch = obs[0], obs[1]
 
         # upright check: cos(roll) ~ 1 when standing
-        # if abs(math.cos(roll)) < 0.5 or abs(math.cos(pitch)) < 0.5:
-        # return True
+        if abs(math.cos(roll)) < 0.5 or abs(math.cos(pitch)) < 0.5:
+            return True
 
         if self._get_base_height() < 0.3:  # allow some tolerance
             return True
