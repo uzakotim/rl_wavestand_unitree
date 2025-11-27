@@ -3,14 +3,14 @@ from unitree_standing_env import UnitreeWaveEnv
 import threading
 import time
 import numpy as np
-
 control_joints = [
     # Legs (L)
-    'left_knee_joint',
+    'left_hip_pitch_joint', 'left_hip_roll_joint',
+    'left_knee_joint', 'left_ankle_pitch_joint',
+
     # Legs (R)
-    'right_knee_joint',
-    # Waist
-    'waist_pitch_joint'
+    'right_hip_pitch_joint', 'right_hip_roll_joint',
+    'right_knee_joint', 'right_ankle_pitch_joint',
 ]
 
 # These lists should match the number of joints

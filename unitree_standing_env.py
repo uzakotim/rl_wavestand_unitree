@@ -161,23 +161,23 @@ class UnitreeWaveEnv(gym.Env):
 
         full_control = np.zeros(len(self.data.ctrl))
 
-        full_control[0] = 0  # left_hip_pitch
-        full_control[1] = 0       # left_hip_roll
+        full_control[0] = tau[0]  # left_hip_pitch
+        full_control[1] = tau[1]       # left_hip_roll
         full_control[2] = 0       # left_hip_yaw
-        full_control[3] = tau[0]  # left_knee
-        full_control[4] = 0  # left_ankle_pitch
+        full_control[3] = tau[2]  # left_knee
+        full_control[4] = tau[3]  # left_ankle_pitch
         full_control[5] = 0       # left_ankle_roll
 
-        full_control[6] = 0  # right_hip_pitch
-        full_control[7] = 0       # right_hip_roll
+        full_control[6] = tau[4]  # right_hip_pitch
+        full_control[7] = tau[5]       # right_hip_roll
         full_control[8] = 0       # right_hip_yaw
-        full_control[9] = tau[1]  # right_knee
-        full_control[10] = 0  # right_ankle_pitch
+        full_control[9] = tau[6]  # right_knee
+        full_control[10] = tau[7]  # right_ankle_pitch
         full_control[11] = 0      # right_ankle_roll
 
         full_control[12] = 0      # waist_yaw
         full_control[13] = 0       # waist_roll
-        full_control[14] = tau[2]  # waist_pitch
+        full_control[14] = 0  # waist_pitch
 
         full_control[15] = 0  # left_shoulder_pitch
         full_control[16] = 0  # left_shoulder_roll

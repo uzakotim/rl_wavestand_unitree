@@ -14,13 +14,12 @@ import torch
 # -----------------------------------------------
 control_joints = [
     # Legs (L)
-    'left_knee_joint',
+    'left_hip_pitch_joint', 'left_hip_roll_joint',
+    'left_knee_joint', 'left_ankle_pitch_joint',
 
     # Legs (R)
-    'right_knee_joint',
-
-    # Waist
-    'waist_pitch_joint'
+    'right_hip_pitch_joint', 'right_hip_roll_joint',
+    'right_knee_joint', 'right_ankle_pitch_joint',
 ]
 
 
@@ -79,7 +78,7 @@ if __name__ == "__main__":
     policy_kwargs = dict(
         net_arch=dict(
             # Actor network: slightly deeper to capture complex action mapping
-            pi=[512, 512, 256, 256],
+            pi=[1024, 512, 256, 256],
             # Critic network: larger to accurately estimate returns (explained variance)
             vf=[1024, 512, 256],
         ),
@@ -92,7 +91,7 @@ if __name__ == "__main__":
         n_steps=2048,
         batch_size=256,
         learning_rate=1e-2,  # 5e-5
-        ent_coef=0.005,
+        ent_coef=0.0001,  # 0.005
         clip_range=0.2,
         vf_coef=1.0,
         gae_lambda=0.90,
@@ -100,7 +99,7 @@ if __name__ == "__main__":
         clip_range_vf=None,
         policy_kwargs=policy_kwargs,
         tensorboard_log="./tensorboard/unitree_standing/",
-        device="cuda"
+        device="cpu"
     )
 
     # ---------------- Callbacks ----------------
