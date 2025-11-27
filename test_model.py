@@ -6,21 +6,11 @@ import numpy as np
 
 control_joints = [
     # Legs (L)
-    'left_hip_pitch_joint',
-    'left_knee_joint', 'left_ankle_pitch_joint',
-
+    'left_knee_joint',
     # Legs (R)
-    'right_hip_pitch_joint',
-    'right_knee_joint', 'right_ankle_pitch_joint',
-
+    'right_knee_joint',
     # Waist
-    'waist_pitch_joint',
-
-    # Left arm
-    'left_shoulder_pitch_joint', 'left_elbow_joint',
-
-    # Right arm
-    'right_shoulder_pitch_joint', 'right_elbow_joint'
+    'waist_pitch_joint'
 ]
 
 # These lists should match the number of joints
@@ -31,8 +21,10 @@ lower_limits = [-2.5307, -0.5236, -2.7576, -0.087267, -0.87267, -0.2618, -2.5307
 
 
 env = UnitreeWaveEnv(render_mode="human", control_joints=control_joints)
-model = PPO.load(
-    "/home/timur/git/rl_wavestand_unitree/models/best/best_model", env=env)
+path_final = "/home/timur/git/rl_wavestand_unitree/models/ppo_unitree_standing_final"
+path_temp = "/home/timur/git/rl_wavestand_unitree/models/ppo_unitree_standing_300000_steps"
+path_best = "/home/timur/git/rl_wavestand_unitree/models/best/best_model"
+model = PPO.load(path_temp, env=env)
 
 obs, info = env.reset()
 done = False
@@ -46,7 +38,6 @@ while 1:
     # obs, reward, terminated, truncated, info = env.step(action)
     # action = np.ones(15)
     obs, reward, terminated, truncated, info = env.step(action)
-    print(reward)
     env.render()
     # print(action)
 

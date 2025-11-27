@@ -16,7 +16,7 @@ class UnitreeWaveEnv(gym.Env):
     metadata = {"render_modes": ["human", "none"]}
 
     def __init__(self, model_path="g1/scene_29dof.xml",
-                 control_joints=None, dt=0.002, render_mode="none"):
+                 control_joints=None, dt=0.001, render_mode="none"):
 
         # dt 0.02
 
@@ -93,7 +93,7 @@ class UnitreeWaveEnv(gym.Env):
         self.wave_amp = 0.6
         self.time = 0.0
 
-        self.max_episode_steps = 1000
+        self.max_episode_steps = 100000
         self.step_count = 0
 
     # =========================================================
@@ -161,36 +161,36 @@ class UnitreeWaveEnv(gym.Env):
 
         full_control = np.zeros(len(self.data.ctrl))
 
-        full_control[0] = tau[0]  # left_hip_pitch
+        full_control[0] = 0  # left_hip_pitch
         full_control[1] = 0       # left_hip_roll
         full_control[2] = 0       # left_hip_yaw
-        full_control[3] = tau[1]  # left_knee
-        full_control[4] = tau[2]  # left_ankle_pitch
+        full_control[3] = tau[0]  # left_knee
+        full_control[4] = 0  # left_ankle_pitch
         full_control[5] = 0       # left_ankle_roll
 
-        full_control[6] = tau[3]  # right_hip_pitch
+        full_control[6] = 0  # right_hip_pitch
         full_control[7] = 0       # right_hip_roll
         full_control[8] = 0       # right_hip_yaw
-        full_control[9] = tau[4]  # right_knee
-        full_control[10] = tau[5]  # right_ankle_pitch
+        full_control[9] = tau[1]  # right_knee
+        full_control[10] = 0  # right_ankle_pitch
         full_control[11] = 0      # right_ankle_roll
 
         full_control[12] = 0      # waist_yaw
         full_control[13] = 0       # waist_roll
-        full_control[14] = tau[6]  # waist_pitch
+        full_control[14] = tau[2]  # waist_pitch
 
-        full_control[15] = tau[7]  # left_shoulder_pitch
+        full_control[15] = 0  # left_shoulder_pitch
         full_control[16] = 0  # left_shoulder_roll
         full_control[17] = 0  # left_shoulder_yaw
-        full_control[18] = tau[8]  # left_elbow
+        full_control[18] = 0  # left_elbow
         full_control[19] = 0  # left_wrist_roll
         full_control[20] = 0  # left_wrist_pitch
         full_control[21] = 0  # left_wrist_yaw
 
-        full_control[22] = tau[9]  # right_shoulder_pitch
+        full_control[22] = 0  # right_shoulder_pitch
         full_control[23] = 0  # right_shoulder_roll
         full_control[24] = 0  # right_shoulder_yaw
-        full_control[25] = tau[10]  # right_elbow
+        full_control[25] = 0  # right_elbow
         full_control[26] = 0  # right_wrist_roll
         full_control[27] = 0  # right_wrist_pitch
         full_control[28] = 0  # right_wrist_yaw
