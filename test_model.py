@@ -24,7 +24,8 @@ env = UnitreeWaveEnv(render_mode="human", control_joints=control_joints)
 path_final = "/home/timur/git/rl_wavestand_unitree/models/ppo_unitree_standing_final"
 path_temp = "/home/timur/git/rl_wavestand_unitree/models/ppo_unitree_standing_1000000_steps"
 path_best = "/home/timur/git/rl_wavestand_unitree/models/best/best_model"
-model = PPO.load(path_temp, env=env)
+path_stage = "/home/timur/git/rl_wavestand_unitree/backup/stage1_standing"
+model = PPO.load(path_stage, env=env)
 
 obs, info = env.reset()
 done = False

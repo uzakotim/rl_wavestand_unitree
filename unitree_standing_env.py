@@ -16,7 +16,7 @@ class UnitreeWaveEnv(gym.Env):
     metadata = {"render_modes": ["human", "none"]}
 
     def __init__(self, model_path="g1/scene_29dof.xml",
-                 control_joints=None, dt=0.001, render_mode="none"):
+                 control_joints=None, dt=0.02, render_mode="none"):
 
         # dt 0.02
 
