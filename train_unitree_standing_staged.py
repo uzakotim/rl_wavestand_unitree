@@ -85,23 +85,6 @@ if __name__ == "__main__":
         ),
         activation_fn=torch.nn.ReLU
     )
-    model = PPO(
-        "MlpPolicy",
-        vec_env,
-        verbose=1,
-        n_steps=2048,
-        batch_size=256,
-        learning_rate=1e-2,  # 5e-5
-        ent_coef=0.005,
-        clip_range=0.2,
-        vf_coef=1.0,
-        gae_lambda=0.90,
-        n_epochs=20,
-        clip_range_vf=None,
-        policy_kwargs=policy_kwargs,
-        tensorboard_log="./tensorboard/unitree_standing/",
-        device="cuda"
-    )
 
     # ---------------- Callbacks ----------------
     checkpoint_callback = CheckpointCallback(
@@ -124,11 +107,12 @@ if __name__ == "__main__":
         n_envs=n_envs
     )
     # ---------------- Train ----------------
+    model = PPO.load(
+        "./backup/stage0_standing.zip", env=vec_env)
     model.learn(
         total_timesteps=int(1e12),
         callback=[checkpoint_callback, eval_callback, update_callback],
     )
-
     # Save final model
     model.save("./models/ppo_unitree_standing_final")
     # Save VecNormalize statistics
