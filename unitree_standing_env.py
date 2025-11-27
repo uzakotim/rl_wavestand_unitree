@@ -88,14 +88,6 @@ class UnitreeWaveEnv(gym.Env):
         self.qpos0 = self.model.qpos0.copy()
         self.stand_height = 0.8
 
-        # -------- Reward Parameters --------
-        self.w_wave = 0.0
-
-        self.w_stand = 0.2
-        self.w_imu_stability = 0.5
-        self.w_posture = 0.2
-        self.w_height = 1.0
-
         # -------- Wave Parameters --------
         self.wave_freq = 0.8
         self.wave_amp = 0.6
@@ -112,10 +104,18 @@ class UnitreeWaveEnv(gym.Env):
 
         mj_resetDataKeyframe(self.model, self.data, 0)
 
-        self.data.qpos[:] = self.qpos0 + 0.001 * \
-            np.random.randn(*self.qpos0.shape)
-        self.data.qvel[:] = 0
+        # Randomize only joint angles, NOT base orientation
+        self.data.qpos[:] = self.qpos0.copy()
 
+        # Force upright quaternion (w,x,y,z)
+        self.data.qpos[3:7] = np.array([1.0, 0.0, 0.0, 0.0])
+
+        # Add small noise to joint angles only
+        joint_start = 7  # first 7 elements = base pos/orientation
+        self.data.qpos[joint_start:] += 0.001 * \
+            np.random.randn(self.model.nq - joint_start)
+
+        self.data.qvel[:] = 0
         mj_forward(self.model, self.data)
 
         self.time = 0.0
@@ -210,9 +210,8 @@ class UnitreeWaveEnv(gym.Env):
     #                    Observations / Reward
     # =========================================================
     def _get_obs(self):
-        base_quat_xyzw = self.data.qpos[3:7]
-        quat = np.array([base_quat_xyzw[3], *base_quat_xyzw[:3]])  # wxyz
-        euler = self._quat_to_euler(quat)
+        quat_wxyz = self.data.qpos[3:7]
+        euler = self._quat_to_euler(quat_wxyz)
         base_ang_vel = self.data.qvel[3:6]
 
         joint_angles = np.array([
@@ -234,83 +233,54 @@ class UnitreeWaveEnv(gym.Env):
         ]).astype(np.float32)
 
     def _compute_reward(self, obs, action, tau):
-        """
-        obs layout assumption:
-        [0:3] roll, pitch, yaw
-        [3:6] wx, wy, wz (angular velocity)
-        [6:6+n_actions] joint angles
-        """
-
-        # ---------------------------------
-        # IMU ORIENTATION
-        # ---------------------------------
         roll, pitch, yaw = obs[0:3]
-
-        # Smooth upright shaping (better than abs)
-        orient_error = roll**2 + pitch**2
-        upright = math.exp(-3.0 * orient_error)
-
-        # ---------------------------------
-        # IMU GYRO STABILITY
-        # ---------------------------------
         wx, wy, wz = obs[3:6]
-        ang_vel_error = wx**2 + wy**2  # yaw rate optional
-        imu_stability = math.exp(-1.0 * ang_vel_error)
-
-        # ---------------------------------
-        # POSTURE (JOINT ANGLES)
-        # ---------------------------------
+        # Posture reference
         start_j = 6
         joint_angles = obs[start_j: start_j + self.n_actions]
-
         qref = np.array([
             self.model.qpos0[self.model.jnt_qposadr[j]]
             for j in self.joint_indices
         ])
         posture_err = np.linalg.norm(joint_angles - qref)
-        r_posture = math.exp(-5.0 * posture_err)
 
-        # ---------------------------------
-        # CENTER OF MASS HEIGHT
-        # ---------------------------------
+        # Height
         try:
             com_z = self.data.subtree_com[0][2]
         except:
             com_z = 0.0
-        r_height = com_z
 
-        # ---------------------------------
-        # TORQUE PENALTY
-        # ---------------------------------
-        # torque_pen = self.w_torque_pen * np.sum(tau**2)
+        # -------------------- NORMALIZED TERMS (0–1) --------------------
+        upright_norm = math.exp(-2.0 * (roll**2 + pitch**2))
+        imu_norm = math.exp(-0.5 * (wx**2 + wy**2))
+        posture_norm = math.exp(-3.0 * posture_err)
+        height_norm = np.clip((com_z - 0.45) / 0.30, 0, 1)
 
-        # ---------------------------------
-        # FALL TERMINATION PENALTY
-        # ---------------------------------
-        fall_pen = 0.0
-        if abs(roll) > 0.7 or abs(pitch) > 0.7:
-            fall_pen = -5.0
+        # --------------------- WEIGHTS (sum to 1) -----------------------
+        upright_w = 0.4
+        stability_w = 0.2
+        posture_w = 0.2
+        height_w = 0.2
 
-        # ---------------------------------
-        # TOTAL REWARD
-        # ---------------------------------
-        reward = (
-            self.w_stand * upright +
-            self.w_imu_stability * imu_stability +
-            self.w_posture * r_posture +
-            self.w_height * r_height +
-            fall_pen
+        # -------------------- FINAL REWARD (0–100) ----------------------
+        healthy_reward = (
+            upright_w * upright_norm +
+            stability_w * imu_norm +
+            posture_w * posture_norm +
+            height_w * height_norm
         )
 
-        # ---------------------------------
-        # INFO
-        # ---------------------------------
+        reward = 100.0 * healthy_reward
+
+        # --------------------- FALL PENALTY ------------------------------
+        if abs(roll) > 0.7 or abs(pitch) > 0.7:
+            reward = 0.0  # fully zero reward for the termination
+
         info = {
-            "upright": upright,
-            "imu_stability": imu_stability,
-            "posture": r_posture,
-            "height": r_height,
-            "fall_pen": fall_pen,
+            "upright": upright_norm,
+            "imu_stability": imu_norm,
+            "posture": posture_norm,
+            "height": height_norm
         }
 
         return reward, info
