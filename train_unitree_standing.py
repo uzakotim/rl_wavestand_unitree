@@ -1,4 +1,5 @@
 # file: train_unitree_wave.py
+from stable_baselines3.common.callbacks import BaseCallback
 import os
 import gymnasium as gym
 import numpy as np
@@ -13,16 +14,43 @@ import torch
 # -----------------------------------------------
 control_joints = [
     # Legs (L)
-    'left_hip_pitch_joint', 'left_hip_roll_joint', 'left_hip_yaw_joint',
-    'left_knee_joint', 'left_ankle_pitch_joint', 'left_ankle_roll_joint',
+    'left_hip_pitch_joint',
+    'left_knee_joint', 'left_ankle_pitch_joint',
 
     # Legs (R)
-    'right_hip_pitch_joint', 'right_hip_roll_joint', 'right_hip_yaw_joint',
-    'right_knee_joint', 'right_ankle_pitch_joint', 'right_ankle_roll_joint',
+    'right_hip_pitch_joint',
+    'right_knee_joint', 'right_ankle_pitch_joint',
 
     # Waist
-    'waist_yaw_joint', 'waist_roll_joint', 'waist_pitch_joint',
+    'waist_pitch_joint',
+
+    # Left arm
+    'left_shoulder_pitch_joint', 'left_elbow_joint',
+
+    # Right arm
+    'right_shoulder_pitch_joint', 'right_elbow_joint'
 ]
+
+
+class StopTrainingOnUpdateCount(BaseCallback):
+    def __init__(self, max_updates, n_steps, n_envs, verbose=1):
+        super().__init__(verbose)
+        self.max_updates = max_updates
+        self.n_steps = n_steps
+        self.n_envs = n_envs
+
+    def _on_step(self):
+        # PPO update = collecting n_steps * n_envs transitions
+        updates = self.model.num_timesteps // (self.n_steps * self.n_envs)
+
+        if self.verbose:
+            print(f"Updates completed: {updates}/{self.max_updates}", end="\r")
+
+        if updates >= self.max_updates:
+            print(f"\nReached {self.max_updates} updates → stopping training.")
+            return False
+
+        return True
 
 
 def make_env(rank=0, seed=0, render_mode="none"):
@@ -59,9 +87,9 @@ if __name__ == "__main__":
     policy_kwargs = dict(
         net_arch=dict(
             # Actor network: slightly deeper to capture complex action mapping
-            pi=[512, 512, 256, 256, 256],  # prev number of layers 5
+            pi=[512, 512, 256, 256],
             # Critic network: larger to accurately estimate returns (explained variance)
-            vf=[1024, 512, 256, 256, 256],
+            vf=[1024, 512, 256],
         ),
         activation_fn=torch.nn.ReLU
     )
@@ -71,8 +99,8 @@ if __name__ == "__main__":
         verbose=1,
         n_steps=2048,
         batch_size=256,
-        learning_rate=5e-5,  # 1e-4
-        ent_coef=0.01,  # 0.005
+        learning_rate=1e-4,  # 5e-5
+        ent_coef=0.005,
         clip_range=0.25,
         vf_coef=1.0,
         gae_lambda=0.90,
@@ -85,7 +113,7 @@ if __name__ == "__main__":
 
     # ---------------- Callbacks ----------------
     checkpoint_callback = CheckpointCallback(
-        save_freq=50_000,
+        save_freq=100_000,
         save_path="./models/",
         name_prefix="ppo_unitree_standing",
     )
@@ -96,14 +124,17 @@ if __name__ == "__main__":
         log_path="./logs/",
         eval_freq=20_000,
         n_eval_episodes=5,
-        deterministic=True,
-        render=False,
+        deterministic=True
     )
-
+    update_callback = StopTrainingOnUpdateCount(
+        max_updates=1000,     # ← STOP AFTER 500 PPO UPDATES
+        n_steps=2048,        # must match your PPO config
+        n_envs=n_envs
+    )
     # ---------------- Train ----------------
     model.learn(
-        total_timesteps=1_000_000,
-        callback=[checkpoint_callback, eval_callback],
+        total_timesteps=int(1e12),
+        callback=[checkpoint_callback, eval_callback, update_callback],
     )
 
     # Save final model

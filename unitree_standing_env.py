@@ -91,16 +91,17 @@ class UnitreeWaveEnv(gym.Env):
         # -------- Reward Parameters --------
         self.w_wave = 0.0
 
-        self.w_stand = 1.0
-        self.w_posture = 0.5
-        self.w_torque_pen = 1e-5
+        self.w_stand = 0.2
+        self.w_imu_stability = 0.5
+        self.w_posture = 0.2
+        self.w_height = 1.0
 
         # -------- Wave Parameters --------
         self.wave_freq = 0.8
         self.wave_amp = 0.6
         self.time = 0.0
 
-        self.max_episode_steps = 500
+        self.max_episode_steps = 1000
         self.step_count = 0
 
     # =========================================================
@@ -159,23 +160,40 @@ class UnitreeWaveEnv(gym.Env):
             tau[i] = tau_val
 
         full_control = np.zeros(len(self.data.ctrl))
+
         full_control[0] = tau[0]  # left_hip_pitch
-        full_control[1] = tau[1]  # left_hip_roll
-        full_control[2] = tau[2]  # left_hip_yaw
-        full_control[3] = tau[3]  # left_knee
-        full_control[4] = tau[4]  # left_ankle_pitch
-        full_control[5] = tau[5]  # left_ankle_roll
+        full_control[1] = 0       # left_hip_roll
+        full_control[2] = 0       # left_hip_yaw
+        full_control[3] = tau[1]  # left_knee
+        full_control[4] = tau[2]  # left_ankle_pitch
+        full_control[5] = 0       # left_ankle_roll
 
-        full_control[6] = tau[6]  # right_hip_pitch
-        full_control[7] = tau[7]  # right_hip_roll
-        full_control[8] = tau[8]  # right_hip_yaw
-        full_control[9] = tau[9]  # right_knee
-        full_control[10] = tau[10]  # right_ankle_pitch
-        full_control[11] = tau[11]  # right_ankle_roll
+        full_control[6] = tau[3]  # right_hip_pitch
+        full_control[7] = 0       # right_hip_roll
+        full_control[8] = 0       # right_hip_yaw
+        full_control[9] = tau[4]  # right_knee
+        full_control[10] = tau[5]  # right_ankle_pitch
+        full_control[11] = 0      # right_ankle_roll
 
-        full_control[12] = tau[12]  # waist_yaw
-        full_control[13] = tau[13]  # waist_roll
-        full_control[14] = tau[14]  # waist_pitch
+        full_control[12] = 0      # waist_yaw
+        full_control[13] = 0       # waist_roll
+        full_control[14] = tau[6]  # waist_pitch
+
+        full_control[15] = tau[7]  # left_shoulder_pitch
+        full_control[16] = 0  # left_shoulder_roll
+        full_control[17] = 0  # left_shoulder_yaw
+        full_control[18] = tau[8]  # left_elbow
+        full_control[19] = 0  # left_wrist_roll
+        full_control[20] = 0  # left_wrist_pitch
+        full_control[21] = 0  # left_wrist_yaw
+
+        full_control[22] = tau[9]  # right_shoulder_pitch
+        full_control[23] = 0  # right_shoulder_roll
+        full_control[24] = 0  # right_shoulder_yaw
+        full_control[25] = tau[10]  # right_elbow
+        full_control[26] = 0  # right_wrist_roll
+        full_control[27] = 0  # right_wrist_pitch
+        full_control[28] = 0  # right_wrist_yaw
 
         self.data.ctrl[:] = full_control
         mj_step(self.model, self.data)
@@ -195,7 +213,6 @@ class UnitreeWaveEnv(gym.Env):
         base_quat_xyzw = self.data.qpos[3:7]
         quat = np.array([base_quat_xyzw[3], *base_quat_xyzw[:3]])  # wxyz
         euler = self._quat_to_euler(quat)
-
         base_ang_vel = self.data.qvel[3:6]
 
         joint_angles = np.array([
@@ -217,34 +234,88 @@ class UnitreeWaveEnv(gym.Env):
         ]).astype(np.float32)
 
     def _compute_reward(self, obs, action, tau):
+        """
+        obs layout assumption:
+        [0:3] roll, pitch, yaw
+        [3:6] wx, wy, wz (angular velocity)
+        [6:6+n_actions] joint angles
+        """
+
+        # ---------------------------------
+        # IMU ORIENTATION
+        # ---------------------------------
         roll, pitch, yaw = obs[0:3]
-        upright = math.exp(-(abs(roll) + abs(pitch)))
 
-        joint_angles = obs[6:6+self.n_actions]
-        qref = np.array([self.model.qpos0[self.model.jnt_qposadr[j]]
-                         for j in self.joint_indices])
+        # Smooth upright shaping (better than abs)
+        orient_error = roll**2 + pitch**2
+        upright = math.exp(-3.0 * orient_error)
+
+        # ---------------------------------
+        # IMU GYRO STABILITY
+        # ---------------------------------
+        wx, wy, wz = obs[3:6]
+        ang_vel_error = wx**2 + wy**2  # yaw rate optional
+        imu_stability = math.exp(-1.0 * ang_vel_error)
+
+        # ---------------------------------
+        # POSTURE (JOINT ANGLES)
+        # ---------------------------------
+        start_j = 6
+        joint_angles = obs[start_j: start_j + self.n_actions]
+
+        qref = np.array([
+            self.model.qpos0[self.model.jnt_qposadr[j]]
+            for j in self.joint_indices
+        ])
         posture_err = np.linalg.norm(joint_angles - qref)
-        r_posture = math.exp(-5 * posture_err)
+        r_posture = math.exp(-5.0 * posture_err)
 
-        r_wave = 0.0
+        # ---------------------------------
+        # CENTER OF MASS HEIGHT
+        # ---------------------------------
+        try:
+            com_z = self.data.subtree_com[0][2]
+        except:
+            com_z = 0.0
+        r_height = com_z
 
-        torque_pen = self.w_torque_pen * np.sum(tau**2)
+        # ---------------------------------
+        # TORQUE PENALTY
+        # ---------------------------------
+        # torque_pen = self.w_torque_pen * np.sum(tau**2)
 
+        # ---------------------------------
+        # FALL TERMINATION PENALTY
+        # ---------------------------------
+        fall_pen = 0.0
+        if abs(roll) > 0.7 or abs(pitch) > 0.7:
+            fall_pen = -5.0
+
+        # ---------------------------------
+        # TOTAL REWARD
+        # ---------------------------------
         reward = (
             self.w_stand * upright +
+            self.w_imu_stability * imu_stability +
             self.w_posture * r_posture +
-            self.w_wave * r_wave -
-            torque_pen
+            self.w_height * r_height +
+            fall_pen
         )
-        return reward, {
+
+        # ---------------------------------
+        # INFO
+        # ---------------------------------
+        info = {
             "upright": upright,
+            "imu_stability": imu_stability,
             "posture": r_posture,
-            "wave": r_wave,
-            "torque_pen": torque_pen
+            "height": r_height,
+            "fall_pen": fall_pen,
         }
 
+        return reward, info
+
     def _is_done(self, obs):
-        roll, pitch = obs[0:2]
         # print("cos roll,  cos pitch", math.cos(roll), math.cos(pitch))
         # print("base height", self._get_base_height())
 
