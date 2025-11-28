@@ -138,7 +138,7 @@ if __name__ == "__main__":
     )
     # ---------------- Train ----------------
     model.learn(
-        total_timesteps=int(5e5),
+        total_timesteps=int(1e12),
         callback=[checkpoint_callback, eval_callback, update_callback],
     )
 
