@@ -3,7 +3,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 import os
 import gymnasium as gym
 import numpy as np
-from stable_baselines3 import SAC
+from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
 from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
 from stable_baselines3.common.monitor import Monitor
@@ -14,34 +14,45 @@ import torch
 # -----------------------------------------------
 control_joints = [
     # Legs (L)
-    'left_hip_pitch_joint', 'left_hip_roll_joint',
+    'left_hip_pitch_joint',
     'left_knee_joint', 'left_ankle_pitch_joint',
 
     # Legs (R)
-    'right_hip_pitch_joint', 'right_hip_roll_joint',
+    'right_hip_pitch_joint',
     'right_knee_joint', 'right_ankle_pitch_joint',
+
+    # Waist
+    'waist_pitch_joint',
+
+    # Left arm
+    'left_shoulder_pitch_joint', 'left_elbow_joint',
+
+    # Right arm
+    'right_shoulder_pitch_joint',
+    'right_elbow_joint',
 ]
 
 
-# class StopTrainingOnUpdateCount(BaseCallback):
-#     def __init__(self, max_updates, n_steps, n_envs, verbose=1):
-#         super().__init__(verbose)
-#         self.max_updates = max_updates
-#         self.n_steps = n_steps
-#         self.n_envs = n_envs
+class StopTrainingOnUpdateCount(BaseCallback):
+    def __init__(self, max_updates, n_steps, n_envs, verbose=1):
+        super().__init__(verbose)
+        self.max_updates = max_updates
+        self.n_steps = n_steps
+        self.n_envs = n_envs
 
-#     def _on_step(self):
-#         # PPO update = collecting n_steps * n_envs transitions
-#         updates = self.model.num_timesteps // (self.n_steps * self.n_envs)
+    def _on_step(self):
+        # PPO update = collecting n_steps * n_envs transitions
+        updates = self.model.num_timesteps // (self.n_steps * self.n_envs)
 
-#         if self.verbose:
-#             print(f"Updates completed: {updates}/{self.max_updates}", end="\r")
+        if self.verbose:
+            print(
+                f"Episodes completed: {updates}/{self.max_updates}", end="\r")
 
-#         if updates >= self.max_updates:
-#             print(f"\nReached {self.max_updates} updates → stopping training.")
-#             return False
+        if updates >= self.max_updates:
+            print(f"\nReached {self.max_updates} updates → stopping training.")
+            return False
 
-#         return True
+        return True
 
 
 def make_env(rank=0, seed=0, render_mode="none"):
@@ -65,11 +76,12 @@ if __name__ == "__main__":
     # vec_env = VecNormalize(vec_env, norm_obs=True,
     #                        norm_reward=False, clip_obs=10.0, clip_reward=10.0)
 
-    vec_env = VecNormalize(vec_env, norm_obs=True, norm_reward=False)
+    vec_env = VecNormalize(vec_env, norm_obs=True,
+                           norm_reward=False, clip_obs=10.0)
     # Evaluation environment
     eval_env = DummyVecEnv([lambda: Monitor(UnitreeWaveEnv(
         render_mode="none", control_joints=control_joints))])
-    eval_env = VecNormalize(eval_env, norm_obs=True,
+    eval_env = VecNormalize(eval_env, norm_obs=False,
                             norm_reward=False)
     eval_env.training = False
     eval_env.norm_reward = False
@@ -84,19 +96,21 @@ if __name__ == "__main__":
         ),
         activation_fn=torch.nn.ReLU
     )
-    model = SAC(
+    model = PPO(
         "MlpPolicy",
         vec_env,
         verbose=1,
         n_steps=2048,
         batch_size=128,
-        learning_rate=3e-4,  # 5e-5
-        ent_coef='auto',  # 0.005
-        # clip_range=0.2,
-        # vf_coef=1.0,
-        # gae_lambda=0.90,
-        # n_epochs=20,
-        # clip_range_vf=None,
+        learning_rate=5e-5,  # 5e-5
+        ent_coef=0.0001,  # 0.005
+        # PPO
+        clip_range=0.2,
+        vf_coef=1.0,
+        gae_lambda=0.90,
+        n_epochs=20,
+        clip_range_vf=None,
+        # ------
         policy_kwargs=policy_kwargs,
         tensorboard_log="./tensorboard/unitree_standing/",
         device="cuda"
@@ -106,7 +120,7 @@ if __name__ == "__main__":
     checkpoint_callback = CheckpointCallback(
         save_freq=100_000,
         save_path="./models/",
-        name_prefix="sac_unitree_standing",
+        name_prefix="ppo_unitree_standing",
     )
 
     eval_callback = EvalCallback(
@@ -117,14 +131,19 @@ if __name__ == "__main__":
         n_eval_episodes=5,
         deterministic=True
     )
+    update_callback = StopTrainingOnUpdateCount(
+        max_updates=500,
+        n_steps=2048,
+        n_envs=n_envs
+    )
     # ---------------- Train ----------------
     model.learn(
-        total_timesteps=int(1e6),
-        callback=[checkpoint_callback, eval_callback],
+        total_timesteps=int(5e5),
+        callback=[checkpoint_callback, eval_callback, update_callback],
     )
 
     # Save final model
-    model.save("./models/sac_unitree_standing_final")
+    model.save("./models/ppo_unitree_standing_final")
     # Save VecNormalize statistics
     vec_env.save("./models/vecnormalize.pkl")
 

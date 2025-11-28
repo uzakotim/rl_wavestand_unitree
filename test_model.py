@@ -1,16 +1,26 @@
-from stable_baselines3 import SAC
+from stable_baselines3 import SAC, PPO
 from unitree_standing_env import UnitreeWaveEnv
 import threading
 import time
 import numpy as np
 control_joints = [
     # Legs (L)
-    'left_hip_pitch_joint', 'left_hip_roll_joint',
+    'left_hip_pitch_joint',
     'left_knee_joint', 'left_ankle_pitch_joint',
 
     # Legs (R)
-    'right_hip_pitch_joint', 'right_hip_roll_joint',
+    'right_hip_pitch_joint',
     'right_knee_joint', 'right_ankle_pitch_joint',
+
+    # Waist
+    'waist_pitch_joint',
+
+    # Left arm
+    'left_shoulder_pitch_joint', 'left_elbow_joint',
+
+    # Right arm
+    'right_shoulder_pitch_joint',
+    'right_elbow_joint',
 ]
 
 # These lists should match the number of joints
@@ -22,24 +32,16 @@ lower_limits = [-2.5307, -0.5236, -2.7576, -0.087267, -0.87267, -0.2618, -2.5307
 
 env = UnitreeWaveEnv(render_mode="human", control_joints=control_joints)
 path_final = "/home/timur/git/rl_wavestand_unitree/models/ppo_unitree_standing_final"
-path_temp = "/home/timur/git/rl_wavestand_unitree/models/ppo_unitree_standing_100000_steps"
+path_temp = "/home/timur/git/rl_wavestand_unitree/models/ppo_unitree_standing_300000_steps"
 path_best = "/home/timur/git/rl_wavestand_unitree/models/best/best_model"
 path_stage = "/home/timur/git/rl_wavestand_unitree/backup/stage1_standing"
-model = SAC.load(path_temp, env=env, device="cuda")
+model = PPO.load(path_best, env=env)
 
 obs, info = env.reset()
 done = False
 while 1:
     action, _ = model.predict(obs, deterministic=True)
-
-    # qpos_addr = env.model.jnt_qposadr[env.joint_indices[3]]
-    # print("Left knee target:",
-    #   (lower_limits[3]+upper_limits[3])/2 + action[3]*(upper_limits[3]-lower_limits[3])/2)
-    # print("Current joint pos:", env.data.qpos[qpos_addr])
-    # obs, reward, terminated, truncated, info = env.step(action)
-    # action = np.ones(15)
     obs, reward, terminated, truncated, info = env.step(action)
     env.render()
-    # print(action)
 
 env.close()

@@ -16,7 +16,7 @@ class UnitreeWaveEnv(gym.Env):
     metadata = {"render_modes": ["human", "none"]}
 
     def __init__(self, model_path="g1/scene_29dof.xml",
-                 control_joints=None, dt=0.02, render_mode="none"):
+                 control_joints=None, dt=0.005, render_mode="none"):
 
         # dt 0.02
 
@@ -71,7 +71,7 @@ class UnitreeWaveEnv(gym.Env):
 
         # -------- Action Space --------
         self.n_actions = len(self.control_joints)
-        max_delta = 1.0  # 1.0
+        max_delta = 0.5
         self.action_space = spaces.Box(
             low=-max_delta, high=max_delta,
             shape=(self.n_actions,), dtype=np.float32
@@ -150,7 +150,7 @@ class UnitreeWaveEnv(gym.Env):
 
             # target = self.data.qpos[qpos_addr] + action[i] * \
             # (upper_limits[i]-lower_limits[i])/2
-            target = (lower_limits[i]+upper_limits[i])/2 + action[i] * \
+            target = qpos[qpos_addr] + action[i] * \
                 (upper_limits[i]-lower_limits[i])/2
             qpos_des = target
             qvel_des = 0.0
@@ -162,35 +162,35 @@ class UnitreeWaveEnv(gym.Env):
         full_control = np.zeros(len(self.data.ctrl))
 
         full_control[0] = tau[0]  # left_hip_pitch
-        full_control[1] = tau[1]       # left_hip_roll
+        full_control[1] = 0       # left_hip_roll
         full_control[2] = 0       # left_hip_yaw
-        full_control[3] = tau[2]  # left_knee
-        full_control[4] = tau[3]  # left_ankle_pitch
+        full_control[3] = tau[1]  # left_knee
+        full_control[4] = tau[2]  # left_ankle_pitch
         full_control[5] = 0       # left_ankle_roll
 
-        full_control[6] = tau[4]  # right_hip_pitch
-        full_control[7] = tau[5]       # right_hip_roll
+        full_control[6] = tau[3]  # right_hip_pitch
+        full_control[7] = 0       # right_hip_roll
         full_control[8] = 0       # right_hip_yaw
-        full_control[9] = tau[6]  # right_knee
-        full_control[10] = tau[7]  # right_ankle_pitch
+        full_control[9] = tau[4]  # right_knee
+        full_control[10] = tau[5]  # right_ankle_pitch
         full_control[11] = 0      # right_ankle_roll
 
         full_control[12] = 0      # waist_yaw
         full_control[13] = 0       # waist_roll
-        full_control[14] = 0  # waist_pitch
+        full_control[14] = tau[6]  # waist_pitch
 
-        full_control[15] = 0  # left_shoulder_pitch
+        full_control[15] = tau[7]  # left_shoulder_pitch
         full_control[16] = 0  # left_shoulder_roll
         full_control[17] = 0  # left_shoulder_yaw
-        full_control[18] = 0  # left_elbow
+        full_control[18] = tau[8]  # left_elbow
         full_control[19] = 0  # left_wrist_roll
         full_control[20] = 0  # left_wrist_pitch
         full_control[21] = 0  # left_wrist_yaw
 
-        full_control[22] = 0  # right_shoulder_pitch
+        full_control[22] = tau[9]  # right_shoulder_pitch
         full_control[23] = 0  # right_shoulder_roll
         full_control[24] = 0  # right_shoulder_yaw
-        full_control[25] = 0  # right_elbow
+        full_control[25] = tau[10]  # right_elbow
         full_control[26] = 0  # right_wrist_roll
         full_control[27] = 0  # right_wrist_pitch
         full_control[28] = 0  # right_wrist_yaw
@@ -233,9 +233,15 @@ class UnitreeWaveEnv(gym.Env):
         ]).astype(np.float32)
 
     def _compute_reward(self, obs, action, tau):
+        # ---------------------------
+        # IMU orientation and gyro
+        # ---------------------------
         roll, pitch, yaw = obs[0:3]
         wx, wy, wz = obs[3:6]
-        # Posture reference
+
+        # ---------------------------
+        # Posture error
+        # ---------------------------
         start_j = 6
         joint_angles = obs[start_j: start_j + self.n_actions]
         qref = np.array([
@@ -244,25 +250,38 @@ class UnitreeWaveEnv(gym.Env):
         ])
         posture_err = np.linalg.norm(joint_angles - qref)
 
-        # Height
+        # ---------------------------
+        # Height (COM)
+        # ---------------------------
         try:
-            com_z = self.data.subtree_com[0][2]
+            com_z = self.sim.data.subtree_com[0][2]
         except:
             com_z = 0.0
 
-        # -------------------- NORMALIZED TERMS (0–1) --------------------
+        # ---------------------------
+        # Normalized terms (0–1)
+        # ---------------------------
         upright_norm = math.exp(-2.0 * (roll**2 + pitch**2))
         imu_norm = math.exp(-0.5 * (wx**2 + wy**2))
         posture_norm = math.exp(-3.0 * posture_err)
         height_norm = np.clip((com_z - 0.45) / 0.30, 0, 1)
 
-        # --------------------- WEIGHTS (sum to 1) -----------------------
-        upright_w = 0.4
-        stability_w = 0.2
-        posture_w = 0.2
-        height_w = 0.2
+        # ---------------------------
+        # Torque penalty
+        # ---------------------------
+        torque_pen = 0.0001 * np.sum(tau**2)
 
-        # -------------------- FINAL REWARD (0–100) ----------------------
+        # ---------------------------
+        # Reward weights
+        # ---------------------------
+        upright_w = 0.3
+        stability_w = 0.2
+        posture_w = 0.1
+        height_w = 0.4
+
+        # ---------------------------
+        # Healthy reward (weighted sum)
+        # ---------------------------
         healthy_reward = (
             upright_w * upright_norm +
             stability_w * imu_norm +
@@ -270,17 +289,26 @@ class UnitreeWaveEnv(gym.Env):
             height_w * height_norm
         )
 
-        reward = 100.0 * healthy_reward
+        # Scale reward to ~0–100 and subtract torque penalty
+        reward = healthy_reward - torque_pen
+        # ---------------------------
+        # Fall penalty
+        # ---------------------------
+        # if abs(roll) > 0.7 or abs(pitch) > 0.7:
+        #     reward = 0.0  # fully zero if fallen
+        # upright check: cos(roll) ~ 1 when standing
+        if abs(math.cos(roll)) < 0.6 or abs(math.cos(pitch)) < 0.6:
+            reward = 0.0
 
-        # --------------------- FALL PENALTY ------------------------------
-        if abs(roll) > 0.7 or abs(pitch) > 0.7:
-            reward = 0.0  # fully zero reward for the termination
-
+        # ---------------------------
+        # Info dict
+        # ---------------------------
         info = {
             "upright": upright_norm,
             "imu_stability": imu_norm,
             "posture": posture_norm,
-            "height": height_norm
+            "height": height_norm,
+            "torque_pen": torque_pen
         }
 
         return reward, info
