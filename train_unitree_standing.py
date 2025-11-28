@@ -3,7 +3,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 import os
 import gymnasium as gym
 import numpy as np
-from stable_baselines3 import PPO
+from stable_baselines3 import SAC
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
 from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
 from stable_baselines3.common.monitor import Monitor
@@ -23,25 +23,25 @@ control_joints = [
 ]
 
 
-class StopTrainingOnUpdateCount(BaseCallback):
-    def __init__(self, max_updates, n_steps, n_envs, verbose=1):
-        super().__init__(verbose)
-        self.max_updates = max_updates
-        self.n_steps = n_steps
-        self.n_envs = n_envs
+# class StopTrainingOnUpdateCount(BaseCallback):
+#     def __init__(self, max_updates, n_steps, n_envs, verbose=1):
+#         super().__init__(verbose)
+#         self.max_updates = max_updates
+#         self.n_steps = n_steps
+#         self.n_envs = n_envs
 
-    def _on_step(self):
-        # PPO update = collecting n_steps * n_envs transitions
-        updates = self.model.num_timesteps // (self.n_steps * self.n_envs)
+#     def _on_step(self):
+#         # PPO update = collecting n_steps * n_envs transitions
+#         updates = self.model.num_timesteps // (self.n_steps * self.n_envs)
 
-        if self.verbose:
-            print(f"Updates completed: {updates}/{self.max_updates}", end="\r")
+#         if self.verbose:
+#             print(f"Updates completed: {updates}/{self.max_updates}", end="\r")
 
-        if updates >= self.max_updates:
-            print(f"\nReached {self.max_updates} updates → stopping training.")
-            return False
+#         if updates >= self.max_updates:
+#             print(f"\nReached {self.max_updates} updates → stopping training.")
+#             return False
 
-        return True
+#         return True
 
 
 def make_env(rank=0, seed=0, render_mode="none"):
@@ -80,33 +80,33 @@ if __name__ == "__main__":
             # Actor network: slightly deeper to capture complex action mapping
             pi=[1024, 512, 256, 256],
             # Critic network: larger to accurately estimate returns (explained variance)
-            vf=[1024, 512, 256],
+            qf=[1024, 512, 256],
         ),
         activation_fn=torch.nn.ReLU
     )
-    model = PPO(
+    model = SAC(
         "MlpPolicy",
         vec_env,
         verbose=1,
         n_steps=2048,
-        batch_size=256,
-        learning_rate=1e-2,  # 5e-5
-        ent_coef=0.0001,  # 0.005
-        clip_range=0.2,
-        vf_coef=1.0,
-        gae_lambda=0.90,
-        n_epochs=20,
-        clip_range_vf=None,
+        batch_size=128,
+        learning_rate=3e-4,  # 5e-5
+        ent_coef='auto',  # 0.005
+        # clip_range=0.2,
+        # vf_coef=1.0,
+        # gae_lambda=0.90,
+        # n_epochs=20,
+        # clip_range_vf=None,
         policy_kwargs=policy_kwargs,
         tensorboard_log="./tensorboard/unitree_standing/",
-        device="cpu"
+        device="cuda"
     )
 
     # ---------------- Callbacks ----------------
     checkpoint_callback = CheckpointCallback(
         save_freq=100_000,
         save_path="./models/",
-        name_prefix="ppo_unitree_standing",
+        name_prefix="sac_unitree_standing",
     )
 
     eval_callback = EvalCallback(
@@ -117,19 +117,14 @@ if __name__ == "__main__":
         n_eval_episodes=5,
         deterministic=True
     )
-    update_callback = StopTrainingOnUpdateCount(
-        max_updates=500,     # ← STOP AFTER 500 PPO UPDATES
-        n_steps=2048,        # must match your PPO config
-        n_envs=n_envs
-    )
     # ---------------- Train ----------------
     model.learn(
-        total_timesteps=int(1e12),
-        callback=[checkpoint_callback, eval_callback, update_callback],
+        total_timesteps=int(1e6),
+        callback=[checkpoint_callback, eval_callback],
     )
 
     # Save final model
-    model.save("./models/ppo_unitree_standing_final")
+    model.save("./models/sac_unitree_standing_final")
     # Save VecNormalize statistics
     vec_env.save("./models/vecnormalize.pkl")
 

@@ -1,4 +1,4 @@
-from stable_baselines3 import PPO
+from stable_baselines3 import SAC
 from unitree_standing_env import UnitreeWaveEnv
 import threading
 import time
@@ -22,10 +22,10 @@ lower_limits = [-2.5307, -0.5236, -2.7576, -0.087267, -0.87267, -0.2618, -2.5307
 
 env = UnitreeWaveEnv(render_mode="human", control_joints=control_joints)
 path_final = "/home/timur/git/rl_wavestand_unitree/models/ppo_unitree_standing_final"
-path_temp = "/home/timur/git/rl_wavestand_unitree/models/ppo_unitree_standing_1000000_steps"
+path_temp = "/home/timur/git/rl_wavestand_unitree/models/ppo_unitree_standing_100000_steps"
 path_best = "/home/timur/git/rl_wavestand_unitree/models/best/best_model"
 path_stage = "/home/timur/git/rl_wavestand_unitree/backup/stage1_standing"
-model = PPO.load(path_stage, env=env)
+model = SAC.load(path_temp, env=env, device="cuda")
 
 obs, info = env.reset()
 done = False
